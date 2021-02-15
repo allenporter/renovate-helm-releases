@@ -13,10 +13,11 @@ logging.basicConfig(
 
 LOG = logging.getLogger("Renovate Helm Releases")
 
-INCLUDE_FILES = [".yaml", ".yml"]
 DEFAULT_NAMESPACE = 'default'
+INCLUDE_FILES = [".yaml", ".yml"]
 HELM_REPOSITORY_APIVERSIONS = ["source.toolkit.fluxcd.io/v1beta1"]
 HELM_RELEASE_APIVERSIONS = ["helm.toolkit.fluxcd.io/v2beta1"]
+RENOVATE_STRING = '# renovate: registryUrl='
 
 class ClusterPath(click.ParamType):
     name = 'cluster-path'
@@ -98,6 +99,20 @@ def cli(ctx, cluster_path, dry_run):
             if value['chart_url']:
                 for file in value['files']:
                     LOG.info(f"Updating {chart_name} annotations in {file} with {value['chart_url']}")
+                    with open(file, mode='r') as fid:
+                        lines = fid.read().splitlines()
+
+                    with open(file, mode='w') as fid:
+                        for line in lines:
+                            if RENOVATE_STRING in line:
+                                continue
+
+                            if ' chart: ' in line:
+                                indent_spaces = len(line) - len(line.lstrip())
+                                fid.write(f"{' ' * indent_spaces}{RENOVATE_STRING}{value['chart_url']}\n")
+                                pass
+
+                            fid.write('{}\n'.format(line))
             else:
                 LOG.warning(f"Skipping {chart_name} because no matching Helm Repository was found.")
         else:
