@@ -13,6 +13,10 @@ logging.basicConfig(
 
 LOG = logging.getLogger("Renovate Helm Releases")
 
+INCLUDE_FILES = [".yaml", ".yml"]
+HELM_REPOSITORY_APIVERSIONS = ["source.toolkit.fluxcd.io/v1beta1"]
+HELM_RELEASE_APIVERSIONS = ["helm.toolkit.fluxcd.io/v2beta1"]
+
 class ClusterPath(click.ParamType):
     name = 'cluster-path'
     def convert(self, value, param, ctx):
@@ -43,41 +47,44 @@ def cli(ctx, cluster_path, dry_run):
     #     'dry_run': dry_run
     # }
 
-    include_files = [".yaml", ".yml"]
-    helm_repository_apiversions = ["source.toolkit.fluxcd.io/v1beta1"]
-    helm_release_apiversions = ["helm.toolkit.fluxcd.io/v2beta1"]
-
     annotations = {}
 
-    files = [p for p in cluster_path.rglob('*') if p.suffix in include_files]
+    files = [p for p in cluster_path.rglob('*') if p.suffix in INCLUDE_FILES]
     for file in files:
         for doc in ruamel.yaml.round_trip_load_all(file.read_bytes()):
             if doc:
-                if 'apiVersion' in doc and doc['apiVersion'] in helm_repository_apiversions \
+                if 'apiVersion' in doc and doc['apiVersion'] in HELM_REPOSITORY_APIVERSIONS \
                         and 'kind' in doc and doc['kind'] == "HelmRepository":
-                    LOG.info(f"Found Helm Repository \"{doc['metadata']['name']}\" with chart url \"{doc['spec']['url']}\"")
+                    helm_repo_name = doc['metadata']['name']
+                    helm_repo_url = doc['spec']['url']
                     
-                    if doc['metadata']['name'] in annotations:
-                        annotations[doc['metadata']['name']]['chart_url'] = doc['spec']['url']
+                    LOG.info(f"Found Helm Repository \"{helm_repo_name}\" with chart url \"{helm_repo_url}\"")
+                    
+                    if helm_repo_name in annotations:
+                        annotations[helm_repo_name]['chart_url'] = helm_repo_url
                     else:
-                        annotations[doc['metadata']['name']] = { 
-                            'chart_url': doc['spec']['url'],
+                        annotations[helm_repo_name] = { 
+                            'chart_url': helm_repo_url,
                             'files': []
                         }
                 else:
                     LOG.debug(f"Skipping {file}, not a Helm Repository")
 
-                if 'apiVersion' in doc and doc['apiVersion'] in helm_release_apiversions \
+                if 'apiVersion' in doc and doc['apiVersion'] in HELM_RELEASE_APIVERSIONS \
                         and 'kind' in doc and doc['kind'] == "HelmRelease" \
                         and doc['spec']['chart']['spec']['sourceRef']['kind'] == "HelmRepository":
-                    LOG.info(f"Found Helm Release '{doc['metadata']['name']}' in namespace '{doc['metadata']['namespace']}'")
+                    helm_release_name = doc['metadata']['name']
+                    helm_release_namespace = doc['metadata']['namespace']
+                    helm_release_repository = doc['spec']['chart']['spec']['sourceRef']['name']
+
+                    LOG.info(f"Found Helm Release '{helm_release_name}' in namespace '{helm_release_namespace}'")
                     
-                    if not doc['spec']['chart']['spec']['sourceRef']['name'] in annotations:
-                        annotations[doc['spec']['chart']['spec']['sourceRef']['name']] = { 
+                    if not helm_release_repository in annotations:
+                        annotations[helm_release_repository] = { 
                             'chart_url': None,
                             'files': []
                         }                   
-                    annotations[doc['spec']['chart']['spec']['sourceRef']['name']]['files'].append(file)
+                    annotations[helm_release_repository]['files'].append(file)
                 else:
                     LOG.debug(f"Skipping {file}, not a Helm Release")
 
