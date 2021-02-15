@@ -80,8 +80,12 @@ def cli(ctx, cluster_path, dry_run):
 
     print(annotations)
 
-    for item in annotations.values():
-        print("File: %s Url: %s" % (item['file'], item['chart_url']))
+    for chart_name, value in annotations.items():
+        try:
+            LOG.info(f"Updating {chart_name} annotations in {value['file']} with {value['chart_url']}")
+        except (KeyError):
+            LOG.warning(f"Skipping {chart_name} no Helm Release found using {value['chart_url']}")
+            continue
 
 if __name__ == "__main__":
     cli()
