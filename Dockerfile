@@ -1,11 +1,11 @@
-FROM python:3.9-alpine
+FROM python:3-alpine
 
-WORKDIR /app
+RUN pip install --no-cache-dir \
+    click==7.1.2 \
+    ruamel.yaml==0.16.12
 
-COPY requirements.txt renovate.py /app/
+COPY renovate.py /app
 
-RUN apk add --no-cache bash curl tini procps jq ca-certificates \
-    && pip install -r requirements.txt
+COPY entrypoint.sh /entrypoint.sh
 
-ENTRYPOINT [ "/sbin/tini", "--"]
-CMD [ "renovate.py" ]
+ENTRYPOINT [ "/entrypoint.sh" ]

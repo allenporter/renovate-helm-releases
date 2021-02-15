@@ -1,0 +1,12 @@
+---
+name: "Renovate Flux2 Helm Releases"
+description: "Creates Renovate annotations in Flux2 Helm Releases"
+inputs:
+  cluster-path:
+    description: "Path to folder containing your Flux2 Helm Repositories and Helm Releases"
+    required: true
+runs:
+  using: "docker"
+  image: "Dockerfile"
+  args:
+  - ${{ inputs.cluster-path }}
