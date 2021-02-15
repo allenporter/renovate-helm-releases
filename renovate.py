@@ -1,8 +1,6 @@
-import fnmatch
+from pathlib import Path
+
 import logging
-import os
-import re
-import sys
 
 import click
 import ruamel.yaml
@@ -18,10 +16,11 @@ LOG = logging.getLogger("Renovate Helm Releases")
 class ClusterPath(click.ParamType):
     name = 'cluster-path'
     def convert(self, value, param, ctx):
+        clusterPath = Path(value)
         if not isinstance(value, tuple):
-            if not os.path.exists(value):
+            if not clusterPath.exists:
                 self.fail('invalid --cluster-path (%s) ' % value, param, ctx)
-        return os.path.abspath(value)
+        return clusterPath
 
 @click.command()
 @click.option(
@@ -44,46 +43,41 @@ def cli(ctx, cluster_path, dry_run):
     #     'dry_run': dry_run
     # }
 
-    include_files = ["*.yaml", "*.yml"]
-    include_files = r'|'.join([fnmatch.translate(x) for x in include_files])
+    include_files = [".yaml", ".yml"]
+    helm_repository_apiversions = ["source.toolkit.fluxcd.io/v1beta1"]
+    helm_release_apiversions = ["helm.toolkit.fluxcd.io/v2beta1"]
 
     annotations = dict()
 
-    for root, _, files in os.walk(cluster_path):
-        files = [os.path.join(root, f) for f in files]
-        files = [f for f in files if re.match(include_files, f)]
-        for file in files:
-            with open(file) as f_yaml:
-                for doc in ruamel.yaml.round_trip_load_all(f_yaml):
-                    try:
-                        if doc['apiVersion'] == "source.toolkit.fluxcd.io/v1beta1" and doc['kind'] == "HelmRepository":
-                            LOG.info(f"Found Helm Repository '{doc['metadata']['name']}' with chart url '{doc['spec']['url']}'")
-                            annotations[doc['metadata']['name']] = { 'chart_url': doc['spec']['url'] }
-                            # annotations[doc['metadata']['name']] = doc['spec']['url']
-                    except (TypeError):
-                        LOG.warning(f"Skipping {file} not a Helm Repository")
-                        continue
+    files = [p for p in cluster_path.rglob('*') if p.suffix in include_files]
+    for file in files:
+        for doc in ruamel.yaml.round_trip_load_all(file.read_bytes()):
+            if doc:
+                if 'apiVersion' in doc and doc['apiVersion'] in helm_repository_apiversions \
+                        and 'kind' in doc and doc['kind'] == "HelmRepository":
+                    LOG.info(f"Found Helm Repository \"{doc['metadata']['name']}\" with chart url \"{doc['spec']['url']}\"")
+                    annotations[doc['metadata']['name']] = { 'chart_url': doc['spec']['url'] }
+                    # annotations[doc['metadata']['name']] = doc['spec']['url']
+                    continue
+                else:
+                    LOG.debug(f"Skipping {file}, not a Helm Repository")
 
-    for root, _, files in os.walk(cluster_path):
-        files = [os.path.join(root, f) for f in files]
-        files = [f for f in files if re.match(include_files, f)]
-        for file in files:
-            with open(file) as f_yaml:
-                for doc in ruamel.yaml.round_trip_load_all(f_yaml):
-                    try:
-                        if doc['apiVersion'] == "helm.toolkit.fluxcd.io/v2beta1" and doc['kind'] == "HelmRelease":
-                            LOG.info(f"Found Helm Release '{doc['spec']['chart']['spec']['chart']}'")
-                            annotations[doc['spec']['chart']['spec']['sourceRef']['name']].update({ 'file': file })
-                    except (TypeError):
-                        LOG.warning(f"Skipping {file} not a Helm Release")
-                        continue
-
-    print(annotations)
+    for file in files:
+        for doc in ruamel.yaml.round_trip_load_all(file.read_bytes()):
+            if doc:
+                if 'apiVersion' in doc and doc['apiVersion'] in helm_release_apiversions \
+                        and 'kind' in doc and doc['kind'] == "HelmRelease" \
+                        and doc['spec']['chart']['spec']['sourceRef']['kind'] == "HelmRepository":
+                    LOG.info(f"Found Helm Release '{doc['metadata']['name']}' in namespace '{doc['metadata']['namespace']}'")
+                    annotations[doc['spec']['chart']['spec']['sourceRef']['name']].update({ 'file': file })
+                    continue
+                else:
+                    LOG.debug(f"Skipping {file}, not a Helm Release")
 
     for chart_name, value in annotations.items():
-        try:
+        if 'file' in value and 'chart_url' in value:
             LOG.info(f"Updating {chart_name} annotations in {value['file']} with {value['chart_url']}")
-        except (KeyError):
+        else:
             LOG.warning(f"Skipping {chart_name} no Helm Release found using {value['chart_url']}")
             continue
 
