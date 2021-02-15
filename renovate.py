@@ -1,17 +1,8 @@
-from pathlib import Path
-
 import logging
+from pathlib import Path
 
 import click
 import ruamel.yaml
-
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s %(name)s %(levelname)-8s %(message)s",
-    datefmt="%Y-%m-%d %H:%M:%S"
-)
-
-LOG = logging.getLogger("Renovate Helm Releases")
 
 DEFAULT_NAMESPACE = 'default'
 INCLUDE_FILES = [".yaml", ".yml"]
@@ -30,24 +21,33 @@ class ClusterPath(click.ParamType):
 
 @click.command()
 @click.option(
-    '--cluster-path', '-d', envvar='CLUSTER_PATH', 
+    '--cluster-path', envvar='CLUSTER_PATH', 
     type=ClusterPath(), 
     required=True,
     help='Path to cluster root, e.g. "./cluster"'
 )
 @click.option(
-    '--dry-run', '-d', envvar='DRY_RUN', 
+    '--debug', envvar='DEBUG', 
     is_flag=True,
     default=False,
     required=False,
-    help='Do not annotate Helm Releases, only log changes'
+    help='Turn on debug logging'
 )
-@click.pass_context
-def cli(ctx, cluster_path, dry_run):
-    # ctx.obj = {
-    #     'cluster_path': cluster_path,
-    #     'dry_run': dry_run
-    # }
+@click.option(
+    '--dry-run', envvar='DRY_RUN', 
+    is_flag=True,
+    default=False,
+    required=False,
+    help='Do not alter Helm Release files'
+)
+def cli(cluster_path, debug, dry_run):
+    logging.basicConfig(
+        level=(logging.DEBUG if debug else logging.INFO),
+        format="%(asctime)s %(name)s %(levelname)-8s %(message)s",
+        datefmt="%Y-%m-%d %H:%M:%S"
+    )
+
+    logger = logging.getLogger("Renovate Helm Releases")
 
     annotations = {}
 
@@ -60,7 +60,7 @@ def cli(ctx, cluster_path, dry_run):
                     helm_repo_name = doc['metadata']['name']
                     helm_repo_url = doc['spec']['url']
                     
-                    LOG.info(f"Found Helm Repository \"{helm_repo_name}\" with chart url \"{helm_repo_url}\"")
+                    logger.info(f"Found Helm Repository \"{helm_repo_name}\" with chart url \"{helm_repo_url}\"")
                     
                     if helm_repo_name in annotations:
                         annotations[helm_repo_name]['chart_url'] = helm_repo_url
@@ -70,7 +70,7 @@ def cli(ctx, cluster_path, dry_run):
                             'files': []
                         }
                 else:
-                    LOG.debug(f"Skipping {file}, not a Helm Repository")
+                    logger.debug(f"Skipping {file}, not a Helm Repository")
 
                 if 'apiVersion' in doc and doc['apiVersion'] in HELM_RELEASE_APIVERSIONS \
                         and 'kind' in doc and doc['kind'] == "HelmRelease" \
@@ -83,7 +83,7 @@ def cli(ctx, cluster_path, dry_run):
                     
                     helm_release_repository = doc['spec']['chart']['spec']['sourceRef']['name']
 
-                    LOG.info(f"Found Helm Release '{helm_release_name}' in namespace '{helm_release_namespace}'")
+                    logger.info(f"Found Helm Release '{helm_release_name}' in namespace '{helm_release_namespace}'")
                     
                     if not helm_release_repository in annotations:
                         annotations[helm_release_repository] = { 
@@ -92,32 +92,35 @@ def cli(ctx, cluster_path, dry_run):
                         }                   
                     annotations[helm_release_repository]['files'].append(file)
                 else:
-                    LOG.debug(f"Skipping {file}, not a Helm Release")
+                    logger.debug(f"Skipping {file}, not a Helm Release")
 
     for chart_name, value in annotations.items():
         if 'files' in value and 'chart_url' in value:
             if value['chart_url']:
                 for file in value['files']:
-                    LOG.info(f"Updating {chart_name} annotations in {file} with {value['chart_url']}")
-                    with open(file, mode='r') as fid:
-                        lines = fid.read().splitlines()
+                    logger.info(f"Updating {chart_name} annotations in {file} with {value['chart_url']}")
+                    
+                    if not dry_run:
+                        with open(file, mode='r') as fid:
+                            lines = fid.read().splitlines()
 
-                    with open(file, mode='w') as fid:
-                        for line in lines:
-                            if RENOVATE_STRING in line:
-                                continue
+                        with open(file, mode='w') as fid:
+                            for line in lines:
+                                if RENOVATE_STRING in line:
+                                    continue
 
-                            if ' chart: ' in line:
-                                indent_spaces = len(line) - len(line.lstrip())
-                                fid.write(f"{' ' * indent_spaces}{RENOVATE_STRING}{value['chart_url']}\n")
-                                pass
+                                if ' chart: ' in line:
+                                    indent_spaces = len(line) - len(line.lstrip())
+                                    fid.write(f"{' ' * indent_spaces}{RENOVATE_STRING}{value['chart_url']}\n")
+                                    pass
 
-                            fid.write('{}\n'.format(line))
+                                fid.write('{}\n'.format(line))
             else:
-                LOG.warning(f"Skipping {chart_name} because no matching Helm Repository was found.")
+                logger.warning(f"Skipping {chart_name} because no matching Helm Repository was found.")
         else:
-            LOG.warning(f"Skipping {chart_name} no Helm Release found using {value['chart_url']}")
+            logger.warning(f"Skipping {chart_name} no Helm Release found using {value['chart_url']}")
             continue
 
 if __name__ == "__main__":
+    # pylint: disable=no-value-for-parameter
     cli()
