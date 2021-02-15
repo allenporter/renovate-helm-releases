@@ -14,6 +14,7 @@ logging.basicConfig(
 LOG = logging.getLogger("Renovate Helm Releases")
 
 INCLUDE_FILES = [".yaml", ".yml"]
+DEFAULT_NAMESPACE = 'default'
 HELM_REPOSITORY_APIVERSIONS = ["source.toolkit.fluxcd.io/v1beta1"]
 HELM_RELEASE_APIVERSIONS = ["helm.toolkit.fluxcd.io/v2beta1"]
 
@@ -74,7 +75,11 @@ def cli(ctx, cluster_path, dry_run):
                         and 'kind' in doc and doc['kind'] == "HelmRelease" \
                         and doc['spec']['chart']['spec']['sourceRef']['kind'] == "HelmRepository":
                     helm_release_name = doc['metadata']['name']
-                    helm_release_namespace = doc['metadata']['namespace']
+                    if 'namespace' in doc['metadata']:
+                        helm_release_namespace = doc['metadata']['namespace']
+                    else:
+                        helm_release_namespace = DEFAULT_NAMESPACE
+                    
                     helm_release_repository = doc['spec']['chart']['spec']['sourceRef']['name']
 
                     LOG.info(f"Found Helm Release '{helm_release_name}' in namespace '{helm_release_namespace}'")
