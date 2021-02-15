@@ -1,6 +1,27 @@
 # Renovate Helm Releases
 
-Creates [Renovate](https://github.com/renovatebot/renovate) annotations in [Flux2](https://github.com/fluxcd/flux2) Helm Releases
+This script / action adds a [Renovate](https://github.com/renovatebot/renovate) annotation (comment) in [Flux2](https://github.com/fluxcd/flux2) `HelmRelease`s This combined with a `regexManager` in the Renovate config will allow Renovate to pick up newer versions of the charts.
+
+```yaml
+---
+apiVersion: helm.toolkit.fluxcd.io/v2beta1
+kind: HelmRelease
+metadata:
+  name: ingress-nginx-1
+  namespace: default
+spec:
+  interval: 5m
+  chart:
+    spec:
+      # renovate: registryUrl=https://kubernetes.github.io/ingress-nginx
+      chart: ingress-nginx
+      version: 3.23.0
+      sourceRef:
+        kind: HelmRepository
+        name: ingress-nginx-charts
+        namespace: flux-system
+      interval: 5m
+```
 
 ## Workflow example usage
 
