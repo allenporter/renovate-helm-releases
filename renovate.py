@@ -2,7 +2,7 @@ import logging
 from pathlib import Path
 
 import click
-import ruamel.yaml
+import yaml
 
 DEFAULT_NAMESPACE = 'default'
 INCLUDE_FILES = [".yaml", ".yml"]
@@ -53,7 +53,7 @@ def cli(cluster_path, debug, dry_run):
 
     files = [p for p in cluster_path.rglob('*') if p.suffix in INCLUDE_FILES]
     for file in files:
-        for doc in ruamel.yaml.round_trip_load_all(file.read_bytes()):
+        for doc in yaml.safe_load_all(file.read_bytes()):
             if doc:
                 if 'apiVersion' in doc and doc['apiVersion'] in HELM_REPOSITORY_APIVERSIONS \
                         and 'kind' in doc and doc['kind'] == "HelmRepository":
