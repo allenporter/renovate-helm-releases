@@ -95,8 +95,11 @@ def cli(ctx, cluster_path, dry_run):
 
     for chart_name, value in annotations.items():
         if 'files' in value and 'chart_url' in value:
-            for file in value['files']:
-                LOG.info(f"Updating {chart_name} annotations in {file} with {value['chart_url']}")
+            if value['chart_url']:
+                for file in value['files']:
+                    LOG.info(f"Updating {chart_name} annotations in {file} with {value['chart_url']}")
+            else:
+                LOG.warning(f"Skipping {chart_name} because no matching Helm Repository was found.")
         else:
             LOG.warning(f"Skipping {chart_name} no Helm Release found using {value['chart_url']}")
             continue
