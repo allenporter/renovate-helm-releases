@@ -1,6 +1,8 @@
 # Renovate Helm Releases
 
-This script / action adds a [Renovate](https://github.com/renovatebot/renovate) annotation (comment) in [Flux2](https://github.com/fluxcd/flux2) `HelmRelease`s This combined with a `regexManager` in the Renovate config will allow Renovate to pick up newer versions of the charts.
+This script / action adds a [Renovate](https://github.com/renovatebot/renovate) annotation (comment) in [Flux2](https://github.com/fluxcd/flux2) `HelmRelease`'s. 
+
+Combined with a `regexManager` in the Renovate config will allow Renovate to pick up newer versions of the charts.
 
 ```yaml
 ---
