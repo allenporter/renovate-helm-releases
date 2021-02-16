@@ -16,4 +16,5 @@ else
     DRY_RUN=""
 fi
 
-python /renovate.py --cluster-path="${CLUSTER_PATH}" ${DEBUG} ${DRY_RUN}
+/usr/local/bin/python /app/renovate.py --cluster-path="${CLUSTER_PATH}" ${DEBUG} ${DRY_RUN}
+# python renovate.py --cluster-path="${CLUSTER_PATH}" ${DEBUG} ${DRY_RUN}
