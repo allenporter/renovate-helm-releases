@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
   push:
     tags:
-      - "v*.*.*"
+    - "v*.*.*"
 
 env:
   REGISTRY_IMAGE: ghcr.io/k8s-at-home/renovate-helm-releases
@@ -21,13 +21,16 @@ jobs:
       id: prep
       run: |
         VERSION=edge
-        if [[ $GITHUB_REF == refs/tags/* ]]; then
+        if [[ $GITHUB_REF == refs/tags/v* ]]; then
           VERSION=${GITHUB_REF#refs/tags/}
         fi
+        # v1.0.0
         TAGS="${REGISTRY_IMAGE}:${VERSION}"
+        # v1.0.0,v1
+        TAGS="${TAGS},${REGISTRY_IMAGE}:${VERSION%%.*}"
         if [[ $VERSION =~ ^v[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}$ ]]; then
           # :v1.0.0,:v1,:latest
-          TAGS="${TAGS},${TAGS%%.*},${REGISTRY_IMAGE}:latest"
+          TAGS="${TAGS},${REGISTRY_IMAGE}:latest"
         fi
         echo ::set-output name=tags::${TAGS}
 
