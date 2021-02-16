@@ -1,10 +1,10 @@
 FROM python:3-alpine
 
-RUN pip install --no-cache-dir \
-    click==7.1.2 \
-    PyYAML==5.4.1
+COPY requirements.txt /app/requirements.txt
 
-COPY renovate.py /renovate.py
+RUN pip install --no-cache-dir -r /app/requirements.txt
+
+COPY renovate.py /app/renovate.py
 
 COPY entrypoint.sh /entrypoint.sh
 

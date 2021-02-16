@@ -38,6 +38,17 @@ with:
   dry-run: 'no'
 ```
 
+## Script usage example
+
+This script will only work with Python 3
+
+```bash
+# install python dependencies
+pip install -U -r requirements.txt
+# run the script
+./renovate.py --cluster-path="./cluster"
+```
+
 ## Renovate configuration example
 
 Something like the following is needed in order for `Renovate` to pick up `HelmReposistory`'s and `HelmRelease`'s
