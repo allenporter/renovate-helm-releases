@@ -60,7 +60,7 @@ def cli(cluster_path, debug, dry_run):
                     helm_repo_name = doc['metadata']['name']
                     helm_repo_url = doc['spec']['url']
                     
-                    logger.info(f"Found Helm Repository \"{helm_repo_name}\" with chart url \"{helm_repo_url}\"")
+                    logger.info(f"Found Helm Repository {helm_repo_name} with chart url {helm_repo_url}")
                     
                     if helm_repo_name in annotations:
                         annotations[helm_repo_name]['chart_url'] = helm_repo_url
@@ -70,7 +70,7 @@ def cli(cluster_path, debug, dry_run):
                             'files': []
                         }
                 else:
-                    logger.debug(f"Skipping {file}, not a Helm Repository")
+                    logger.debug(f"Skipping {file} not a Helm Repository")
 
                 if 'apiVersion' in doc and doc['apiVersion'] in HELM_RELEASE_APIVERSIONS \
                         and 'kind' in doc and doc['kind'] == "HelmRelease" \
@@ -83,7 +83,7 @@ def cli(cluster_path, debug, dry_run):
                     
                     helm_release_repository = doc['spec']['chart']['spec']['sourceRef']['name']
 
-                    logger.info(f"Found Helm Release '{helm_release_name}' in namespace '{helm_release_namespace}'")
+                    logger.info(f"Found Helm Release {helm_release_name} in namespace {helm_release_namespace}")
                     
                     if not helm_release_repository in annotations:
                         annotations[helm_release_repository] = { 
@@ -92,7 +92,7 @@ def cli(cluster_path, debug, dry_run):
                         }                   
                     annotations[helm_release_repository]['files'].append(file)
                 else:
-                    logger.debug(f"Skipping {file}, not a Helm Release")
+                    logger.debug(f"Skipping {file} not a Helm Release")
 
     for chart_name, value in annotations.items():
         if 'files' in value and 'chart_url' in value:
@@ -116,7 +116,7 @@ def cli(cluster_path, debug, dry_run):
 
                                 fid.write('{}\n'.format(line))
             else:
-                logger.warning(f"Skipping {chart_name} because no matching Helm Repository was found.")
+                logger.warning(f"Skipping {chart_name} because no matching Helm Repository was found")
         else:
             logger.warning(f"Skipping {chart_name} no Helm Release found using {value['chart_url']}")
             continue

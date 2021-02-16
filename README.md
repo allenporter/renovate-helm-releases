@@ -30,12 +30,17 @@ spec:
 ```yaml
 uses: k8s-at-home/renovate-helm-releases@v1
 with:
+  # Path to the folder containing your Flux2 Helm Repositories and Helm Releases
   cluster-path: './cluster'
+  # Turn on debug logging
+  debug: 'no'
+  # Do not alter Helm Release files
+  dry-run: 'no'
 ```
 
 ## Renovate configuration example
 
-The following is needed in order for Renovate to pick up Helm repositories in Helm Releases
+Something like the following is needed in order for `Renovate` to pick up `HelmReposistory`'s and `HelmRelease`'s
 
 ```jsonc
   "regexManagers": [
