@@ -4,7 +4,7 @@ RUN pip install --no-cache-dir \
     click==7.1.2 \
     PyYAML==5.4.1
 
-COPY renovate.py /app/renovate.py
+COPY renovate.py /renovate.py
 
 COPY entrypoint.sh /entrypoint.sh
 
