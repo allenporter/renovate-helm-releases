@@ -15,7 +15,7 @@ inputs:
     default: "no"
 runs:
   using: "docker"
-  image: 'docker://ghcr.io/k8s-at-home/renovate-helm-releases:1.0.2'
+  image: 'docker://ghcr.io/k8s-at-home/renovate-helm-releases:v1.1.0'
   args:
   - ${{ inputs.cluster-path }}
   - ${{ inputs.debug }}
