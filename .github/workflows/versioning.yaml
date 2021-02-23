@@ -1,0 +1,19 @@
+---
+
+name: Tag major only version
+
+on:
+  release:
+    types:
+    - published
+    - edited
+
+jobs:
+  actions-tagger:
+    runs-on: ubuntu-20.04
+    steps:
+    - uses: Actions-R-Us/actions-tagger@latest
+      env:
+        GITHUB_TOKEN: "${{ secret.GITHUB_TOKEN }}"
+      with:
+        publish_latest_tag: true
