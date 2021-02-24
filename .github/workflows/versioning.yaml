@@ -14,6 +14,6 @@ jobs:
     steps:
     - uses: Actions-R-Us/actions-tagger@latest
       env:
-        GITHUB_TOKEN: "${{ secret.GITHUB_TOKEN }}"
+        GITHUB_TOKEN: "${{ secrets.GITHUB_TOKEN }}"
       with:
         publish_latest_tag: true
