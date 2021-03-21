@@ -1,0 +1,8 @@
+---
+apiversion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: flux-system
+resources:
+  - ingress-nginx-charts.yaml
+  - k8s-at-home-charts.yaml
+  - traefik-charts.yaml
