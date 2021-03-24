@@ -1,8 +1,17 @@
 # Renovate Helm Releases
 
-This script / action adds a [Renovate](https://github.com/renovatebot/renovate) annotation (comment) in [Flux2](https://github.com/fluxcd/flux2) `HelmRelease`'s. 
+A script / action that configures [Flux2](https://github.com/fluxcd/flux2) `HelmRelease`'s for automated updates using [Renovate](https://github.com/renovatebot/renovate).
 
+A common way to get started on a GitHub repository is:
+
+- Configure `Renovate` for your flux git repository. See [Renovate Docs: GitHub App Installation](https://docs.renovatebot.com/install-github-app/).
+- Install this script as a [Github Action](https://docs.github.com/en/actions/quickstart) using the [Workflow example usage](#workflow-example-usage) below. This will add an annotation to any `HelmRelease` and Helm chart, required by `Renovate`.
+- Add a `regexManager` in the `Renovate` config to allow `Renovate` to pick up newer versions of Helm charts. See [Renovate Docs: Configuration Options](https://docs.renovatebot.com/configuration-options/) for more details.
 Combined with a `regexManager` in the `Renovate` config will allow `Renovate` to pick up newer versions of Helm charts.
+
+# Example HelmRelease with annotation
+
+This is an example of the annotation this script adds to the helm chart spec of a `HelmRelease`.
 
 ```yaml
 ---
@@ -26,6 +35,8 @@ spec:
 ```
 
 ## Workflow example usage
+
+A common approach is to schedule a cron job workflow to invoke this script an update any annotations and send a pull request. See example clusters in https://github.com/k8s-at-home/awesome-home-kubernetes in particular `.github/workflows` for an end to end example.
 
 ```yaml
 uses: k8s-at-home/renovate-helm-releases@v1
