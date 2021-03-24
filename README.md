@@ -36,7 +36,7 @@ spec:
 
 ## Workflow example usage
 
-A common approach is to schedule a cron job workflow to invoke this script an update any annotations and send a pull request. See example clusters in https://github.com/k8s-at-home/aweso0me-home-kubernetes in particular `.github/workflows` for an end to end example.
+A common approach is to schedule a cron job workflow to invoke this script an update any annotations and send a pull request. See example clusters in https://github.com/k8s-at-home/awesome-home-kubernetes in particular `.github/workflows` for an end to end example.
 
 ```yaml
 uses: k8s-at-home/renovate-helm-releases@v1
