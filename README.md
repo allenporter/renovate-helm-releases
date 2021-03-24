@@ -1,6 +1,6 @@
 # Renovate Helm Releases
 
-A script / action that helps automatically configure [Flux2](https://github.com/fluxcd/flux2) `HelmRelease`'s for automated updates using [Renovate](https://github.com/renovatebot/renovate).
+A script / action that configures [Flux2](https://github.com/fluxcd/flux2) `HelmRelease`'s for automated updates using [Renovate](https://github.com/renovatebot/renovate).
 
 A common way to get started on a GitHub repository is:
 
