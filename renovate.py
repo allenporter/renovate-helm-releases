@@ -35,7 +35,6 @@ KUSTOMIZE_CONFIG = "kustomization.yaml"
 
 class ClusterPath(click.ParamType):
     name = "cluster-path"
-
     def convert(self, value, param, ctx):
         clusterPath = Path(value)
         if not isinstance(value, tuple):
@@ -45,6 +44,7 @@ class ClusterPath(click.ParamType):
 
 
 def kustomize(filename):
+    """Runs kustomize build on the specified kustomization yaml file."""
     command = [KUSTOMIZE_BIN, "build", filename]
     proc = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
     (out, err) = proc.communicate()
@@ -88,34 +88,31 @@ def namespaced_name(doc):
 
 @click.command()
 @click.option(
-    "--cluster-path",
-    envvar="CLUSTER_PATH",
+    "--cluster-path", envvar="CLUSTER_PATH",
     type=ClusterPath(),
     required=True,
-    help="Path to cluster root, e.g. './cluster'",
+    help="Path to cluster root, e.g. './cluster'"
 )
 @click.option(
-    "--debug",
-    envvar="DEBUG",
+    "--debug", envvar="DEBUG",
     is_flag=True,
     default=False,
     required=False,
-    help="Turn on debug logging",
+    help="Turn on debug logging"
 )
 @click.option(
-    "--dry-run",
-    envvar="DRY_RUN",
+    "--dry-run", envvar="DRY_RUN",
     is_flag=True,
     default=False,
     required=False,
-    help="Do not alter Helm Release files",
+    help="Do not alter Helm Release files"
 )
 @click.pass_context
 def cli(ctx, cluster_path, debug, dry_run):
     ctx.obj = {
         "cluster_path": cluster_path,
         "debug": debug,
-        "dry_run": dry_run,
+        "dry_run": dry_run
     }
 
     # pylint: disable=no-value-for-parameter
@@ -209,11 +206,12 @@ def cli(ctx, cluster_path, debug, dry_run):
 
 @click.pass_context
 def logger(ctx):
-    """Set up logging"""
+    """Set up logging
+    """
     logging.basicConfig(
         level=(logging.DEBUG if ctx.obj["debug"] else logging.INFO),
         format="%(asctime)s %(name)s %(levelname)-8s %(message)s",
-        datefmt="%Y-%m-%d %H:%M:%S",
+        datefmt="%Y-%m-%d %H:%M:%S"
     )
     return logging.getLogger("Renovate Helm Releases")
 
