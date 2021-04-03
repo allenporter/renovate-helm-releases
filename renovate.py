@@ -27,7 +27,7 @@ INCLUDE_FILES = [".yaml", ".yml"]
 HELM_REPOSITORY_APIVERSIONS = ["source.toolkit.fluxcd.io/v1beta1"]
 HELM_RELEASE_APIVERSIONS = ["helm.toolkit.fluxcd.io/v2beta1"]
 RENOVATE_STRING = "# renovate: registryUrl="
-KUSTOMIZE_BIN = "kustomize"
+
 
 class ClusterPath(click.ParamType):
     name = "cluster-path"
@@ -110,7 +110,7 @@ def cli(ctx, cluster_path, debug, dry_run):
 
     # Walk all HelmReleases and create a map of release names to repos.
     is_helm_release = kind_filter("HelmRelease", HELM_RELEASE_APIVERSIONS)
-    helm_release_docs = list(filter(is_helm_release, yaml_docs)))
+    helm_release_docs = list(filter(is_helm_release, yaml_docs))
     helm_releases = {}
     for (file, doc) in helm_release_docs:
         helm_release_name = namespaced_name(doc["metadata"])
