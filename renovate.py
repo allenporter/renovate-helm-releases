@@ -10,8 +10,8 @@ The script takes a few steps:
   - Find all HelmRepository entries in the cluster, and its associated chart url
   - Find all HelmReleases that reference a HelmRepository
   - Update all files that contain HelmReleases, with an annotation to reference
-    the chart url for the repository. This is done as a second pass to handle and
-    kustomize overlays
+    the chart url for the repository. This is done as a second pass to handle
+    and kustomize overlays.
 """
 
 import logging
@@ -23,6 +23,7 @@ import click
 import yaml
 
 DEFAULT_NAMESPACE = "default"
+INCLUDE_FILES = [".yaml", ".yml"]
 HELM_REPOSITORY_APIVERSIONS = ["source.toolkit.fluxcd.io/v1beta1"]
 HELM_RELEASE_APIVERSIONS = ["helm.toolkit.fluxcd.io/v2beta1"]
 RENOVATE_STRING = "# renovate: registryUrl="
@@ -38,33 +39,25 @@ class ClusterPath(click.ParamType):
         return clusterPath
 
 
-def run_command(command):
-    """Runs the specified command arguments and returns the string output."""
-    proc = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-    (out, err) = proc.communicate()
-    if proc.returncode:
-        log = logger()
-        log.error(
-            "Subprocess failed %s with return code %s", command, proc.returncode
-        )
-        log.info(out.decode("utf-8"))
-        log.error(err.decode("utf-8"))
-        return None
-    return out.decode("utf-8")
+def yaml_load_files(files):
+    """A generator that loads the contents of all files in yaml."""
+    for file in files:
+        for doc in yaml.safe_load_all(file.read_bytes()):
+            if doc:
+                yield (file, doc)
 
-
-def kustomize_grep(cluster_path, kind):
-    """Loads all Kustomizations for a specific kind as a yaml object."""
-    log = logger()
-    log.debug(f"Finding resources in '{cluster_path}' for kind '{kind}'")
-    command = [KUSTOMIZE_BIN, "cfg", "grep", f"kind={kind}", cluster_path]
-    doc_contents = run_command(command)
-    for doc in yaml.safe_load_all(doc_contents):
-        yield doc
+def kind_filter(kind, api_versions):
+    """Return a yaml doc filter for specified resource type and version."""
+    def func(pair):
+        (file, doc) = pair
+        if doc.get("kind") != kind:
+            return False
+        return doc.get("apiVersion") in api_versions
+    return func
 
 
 def namespaced_name(doc):
-    """Returns a name for the yaml resource, falling back to a default namespace."""
+    """Return a named yaml resource, falling back to a default namespace."""
     name = doc["name"]
     namespace = doc.get("namespace", DEFAULT_NAMESPACE)
     return f"{namespace}/{name}"
@@ -102,27 +95,24 @@ def cli(ctx, cluster_path, debug, dry_run):
     # pylint: disable=no-value-for-parameter
     log = logger()
 
+    files = [p for p in cluster_path.rglob("*") if p.suffix in INCLUDE_FILES]
+
+    yaml_docs = list(yaml_load_files(files))
+
     # Build a map of HelmRepository name to chart url
     helm_repo_charts = {}
-    for doc in kustomize_grep(cluster_path, "HelmRepository"):
-        api_version = doc.get("apiVersion")
-        if api_version not in HELM_REPOSITORY_APIVERSIONS:
-            log.debug(f"Skipping HelmRepository with api_version '{api_version}'")
-            continue
+    is_helm_repo = kind_filter("HelmRepository", HELM_REPOSITORY_APIVERSIONS)
+    for (file, doc) in filter(is_helm_repo, yaml_docs):
         helm_repo_name = namespaced_name(doc["metadata"])
         helm_repo_url = doc["spec"]["url"]
         log.info(f"Found HelmRepository '{helm_repo_name}' url '{helm_repo_url}'")
         helm_repo_charts[helm_repo_name] = helm_repo_url
 
-    helm_release_docs = list(kustomize_grep(cluster_path, "HelmRelease"))
+    # Walk all HelmReleases and create a map of release names to repos.
+    is_helm_release = kind_filter("HelmRelease", HELM_RELEASE_APIVERSIONS)
+    helm_release_docs = list(filter(is_helm_release, yaml_docs)))
     helm_releases = {}
-    # Walk all HelmReleases and create a mapping of release names to repos.
-    for doc in helm_release_docs:
-        api_version = doc.get("apiVersion")
-        if api_version not in HELM_RELEASE_APIVERSIONS:
-            log.debug(f"Skipping HelmRelease with api_version '{api_version}'")
-            continue
-        # kustomize cfg adds an annotation with the source filename for the resource
+    for (file, doc) in helm_release_docs:
         helm_release_name = namespaced_name(doc["metadata"])
         chart_spec = doc["spec"]["chart"]["spec"]
         source_ref = chart_spec.get("sourceRef")
@@ -144,11 +134,7 @@ def cli(ctx, cluster_path, debug, dry_run):
 
     # Walk all HelmReleases and find the referenced HelmRepository by the
     # chart sourceRef and update the renovate annotation.
-    for doc in helm_release_docs:
-        api_version = doc.get("apiVersion")
-        if api_version not in HELM_RELEASE_APIVERSIONS:
-            log.debug(f"Skipping HelmRelease with api_version '{api_version}'")
-            continue
+    for (file, doc) in helm_release_docs:
         helm_release_name = namespaced_name(doc["metadata"])
         if helm_release_name not in helm_releases:
             log.debug(f"Skipping '{helm_release_name}': Could not determine repo")
@@ -166,26 +152,19 @@ def cli(ctx, cluster_path, debug, dry_run):
 
         chart_url = helm_repo_charts[helm_repo_name]
 
-        # kustomize cfg adds an annotation with the source filename for the resource
-        source_filename = doc["metadata"]["annotations"]["config.kubernetes.io/path"]
-        filename = os.path.join(cluster_path, source_filename)
-        if not os.path.exists(filename):
-            log.warning(f"Unable to update '{helm_release_name}': file '{filename}' does not exist")
-            continue
-
         if dry_run:
             log.warning(
-                f"Skipping '{helm_repo_name}' annotations in '{filename}' with '{chart_url}' as this is a dry run"
+                f"Skipping '{helm_repo_name}' annotations in '{file}' with '{chart_url}' as this is a dry run"
             )
             continue
 
         log.info(
-            f"Updating '{helm_repo_name}' renovate annotations in '{filename}' with '{chart_url}'"
+            f"Updating '{helm_repo_name}' renovate annotations in '{file}' with '{chart_url}'"
         )
-        with open(filename, mode="r") as fid:
+        with open(file, mode="r") as fid:
             lines = fid.read().splitlines()
 
-        with open(filename, mode="w") as fid:
+        with open(file, mode="w") as fid:
             for line in lines:
                 if RENOVATE_STRING in line:
                     continue
