@@ -15,12 +15,12 @@ The script takes a few steps:
 """
 
 import logging
+import os
 import subprocess
 from pathlib import Path
 
 import click
 import yaml
-import os
 
 DEFAULT_NAMESPACE = "default"
 HELM_REPOSITORY_APIVERSIONS = ["source.toolkit.fluxcd.io/v1beta1"]
