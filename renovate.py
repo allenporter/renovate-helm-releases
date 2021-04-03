@@ -23,15 +23,16 @@ from pathlib import Path
 
 import click
 import yaml
+import os
 
 DEFAULT_NAMESPACE = "default"
 INCLUDE_FILES = [".yaml", ".yml"]
+FLUX_KUSTOMIZE_API_VERSIONS = ["kustomize.toolkit.fluxcd.io/v1beta1"]
+KUSTOMIZE_API_VERSION = ["kustomize.config.k8s.io/v1beta1"]
 HELM_REPOSITORY_APIVERSIONS = ["source.toolkit.fluxcd.io/v1beta1"]
 HELM_RELEASE_APIVERSIONS = ["helm.toolkit.fluxcd.io/v2beta1"]
 RENOVATE_STRING = "# renovate: registryUrl="
 KUSTOMIZE_BIN = "kustomize"
-KUSTOMIZE_CONFIG = "kustomization.yaml"
-
 
 class ClusterPath(click.ParamType):
     name = "cluster-path"
@@ -42,10 +43,8 @@ class ClusterPath(click.ParamType):
                 self.fail(f"invalid --cluster-path '{value}'")
         return clusterPath
 
-
-def kustomize(filename):
-    """Runs kustomize build on the specified kustomization yaml file."""
-    command = [KUSTOMIZE_BIN, "build", filename]
+def run_command(command):
+    """Runs the specified command arguments and returns the string output."""
     proc = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
     (out, err) = proc.communicate()
     if proc.returncode:
@@ -59,24 +58,14 @@ def kustomize(filename):
     return out.decode("utf-8")
 
 
-def kustomize_build_files(files):
-    """A generatoer that loads all Kustomizations and overlays in yaml."""
+def kustomize_grep(cluster_path, kind):
+    """Loads all Kustomizations for a specific kind as a yaml object."""
     log = logger()
-    for file in files:
-        if file.parts[-1] != KUSTOMIZE_CONFIG:
-            continue
-        log.debug(f"Building kustomization '{file}'")
-        doc_contents = kustomize(file.parent)
-        for doc in yaml.safe_load_all(doc_contents):
-            yield (file.parent, doc)
-
-
-def yaml_load_files(files):
-    """A generator that loads the contents of all files in yaml."""
-    for file in files:
-        for doc in yaml.safe_load_all(file.read_bytes()):
-            if doc:
-                yield (file, doc)
+    log.debug(f"Finding resources in '{cluster_path}' for kind '{kind}'")
+    command = [KUSTOMIZE_BIN, "cfg", "grep", f"kind={kind}", cluster_path]
+    doc_contents = run_command(command)
+    for doc in yaml.safe_load_all(doc_contents):
+        yield doc
 
 
 def namespaced_name(doc):
@@ -118,80 +107,91 @@ def cli(ctx, cluster_path, debug, dry_run):
     # pylint: disable=no-value-for-parameter
     log = logger()
 
-    # The name of each HelmRepository and its chart url
+    # Build a map of HelmRepository name to chart url
     helm_repo_charts = {}
-    # The name of each HelmRelease and the referenced HelmRepository
-    helm_releases = {}
-
-    # Walk the Kustomizations and find HelmRepository and HelmRelease entries including all overlays
-    files = [p for p in cluster_path.rglob("*") if p.suffix in INCLUDE_FILES]
-    for (basename, doc) in kustomize_build_files(files):
+    for doc in kustomize_grep(cluster_path, "HelmRepository"):
         api_version = doc.get("apiVersion")
-        kind = doc.get("kind")
+        if api_version not in HELM_REPOSITORY_APIVERSIONS:
+            log.debug(f"Skipping HelmRepository with api_version '{api_version}'")
+            continue
+        helm_repo_name = namespaced_name(doc["metadata"])
+        helm_repo_url = doc["spec"]["url"]
+        log.info(
+            f"Discovered HelmRepository '{helm_repo_name}' chart url '{helm_repo_url}'"
+        )
+        helm_repo_charts[helm_repo_name] = helm_repo_url
 
-        if api_version in HELM_REPOSITORY_APIVERSIONS and kind == "HelmRepository":
-            helm_repo_name = namespaced_name(doc["metadata"])
-            helm_repo_url = doc["spec"]["url"]
-            log.info(
-                f"Discovered HelmRepository '{helm_repo_name}' chart url '{helm_repo_url}'"
-            )
-            helm_repo_charts[helm_repo_name] = helm_repo_url
-
-        if api_version in HELM_RELEASE_APIVERSIONS and kind == "HelmRelease":
-            if doc["spec"]["chart"]["spec"]["sourceRef"]["kind"] != "HelmRepository":
+    helm_release_docs = list(kustomize_grep(cluster_path, "HelmRelease"))
+    helm_releases = {}
+    for doc in helm_release_docs:
+        api_version = doc.get("apiVersion")
+        if api_version not in HELM_RELEASE_APIVERSIONS:
+            log.debug(f"Skipping HelmRelease with api_version '{api_version}'")
+            continue
+        # kustomize cfg adds an annotation with the source filename for the resource
+        helm_release_name = namespaced_name(doc["metadata"])
+        chart_spec = doc["spec"]["chart"]["spec"]
+        source_ref = chart_spec.get("sourceRef")
+        if not source_ref:
+            # This release may be an overlay, so the repo name could be inferred from the
+            # release name of the base HelmRelease in a second pass.
+            log.debug(f"Skipping '{helm_release_name}': No 'sourceRef' in spec.chart.spec")
+            continue
+        helm_repo_name = namespaced_name(source_ref)
+        if helm_repo_name not in helm_repo_charts:
+            log.debug(f"Skipping '{helm_release_name}': No HelmRepository for '{helm_repo_name}'")
+            continue
+        if helm_release_name in helm_releases:
+            if helm_releases[helm_release_name] != helm_repo_name:
+                log.warning(f"Found HelmRelease '{helm_release_name}' with mismatched repo '{helm_repo_name}'")
                 continue
-            helm_release_name = namespaced_name(doc["metadata"])
-            helm_repo_name = namespaced_name(doc["spec"]["chart"]["spec"]["sourceRef"])
-            log.info(f"Discovered HelmRelease '{helm_release_name}' in {basename}")
-            if helm_release_name not in helm_releases:
-                helm_releases[helm_release_name] = helm_repo_name
-            else:
-                if helm_releases[helm_release_name] != helm_repo_name:
-                    log.error(
-                        f"HelmRelease '{helm_release_name}' mismatch ({helm_repo_name} != {helm_releases[helm_release_name]}"
-                    )
+        log.info(f"Discovered HelmRelease '{helm_release_name}' with repo '{helm_repo_name}'")
+        helm_releases[helm_release_name] = helm_repo_name
 
-    # Walk the underlying files, and update the HelmRelease with the appropriate
-    # HelmRepository chart url as a rennovate comment.
-    for (file, doc) in yaml_load_files(files):
-        if (
-            doc.get("apiVersion") not in HELM_RELEASE_APIVERSIONS
-            or not doc.get("kind") == "HelmRelease"
-        ):
-            log.debug(f"Skipping '{file}': Not a Helm Release")
+    # Walk all HelmReleases and find the referenced HelmRepository by the
+    # chart sourceRef and update the renovate annotation.
+    for doc in helm_release_docs:
+        api_version = doc.get("apiVersion")
+        if api_version not in HELM_RELEASE_APIVERSIONS:
+            log.debug(f"Skipping HelmRelease with api_version '{api_version}'")
             continue
         helm_release_name = namespaced_name(doc["metadata"])
         if helm_release_name not in helm_releases:
-            log.debug(
-                f"Skipping '{file}': HelmRelease '{helm_release_name}' not found"
-            )
+            log.debug(f"Skipping '{helm_release_name}': Could not determine repo")
+            continue
+        # Renovate can only update chart specs that contain a name and version,
+        # so don't bother annotating if its not present.
+        chart_spec = doc["spec"]["chart"]["spec"]
+        if "chart" not in chart_spec or "version" not in chart_spec:
+            log.debug(f"Skipping '{helm_release_name}': No 'chart' or 'version' in spec.chart.spec")
             continue
         helm_repo_name = helm_releases[helm_release_name]
         if helm_repo_name not in helm_repo_charts:
-            log.debug(
-                f"Skipping '{file}': HelmRepostory '{helm_repo_name}' not found"
-            )
+            log.debug(f"Skipping '{file}': HelmRepostory '{helm_repo_name}' not found")
             continue
-        chart_spec = doc["spec"]["chart"]["spec"]
-        if "chart" not in chart_spec or "version" not in chart_spec:
-            log.debug(
-                f"Skipping '{helm_repo_name}': Does not contain 'chart' or 'version' in spec.chart.spec"
-            )
-            continue
+
         chart_url = helm_repo_charts[helm_repo_name]
+
+        # kustomize cfg adds an annotation with the source filename for the resource
+        source_filename = doc["metadata"]["annotations"]["config.kubernetes.io/path"]
+        filename = os.path.join(cluster_path, source_filename)
+        if not os.path.exists(filename):
+            log.warning(f"Unable to update '{helm_release_name}': file '{filename}' does not exist")
+            continue
+
         if dry_run:
             log.warning(
-                f"Skipping '{helm_repo_name}' annotations in '{file}' with '{chart_url}' as this is a dry run"
+                f"Skipping '{helm_repo_name}' annotations in '{filename}' with '{chart_url}' as this is a dry run"
             )
             continue
 
         log.info(
-            f"Updating '{helm_repo_name}' renovate annotations in '{file}' with '{chart_url}'"
+            f"Updating '{helm_repo_name}' renovate annotations in '{filename}' with '{chart_url}'"
         )
-        with open(file, mode="r") as fid:
+        with open(filename, mode="r") as fid:
             lines = fid.read().splitlines()
 
-        with open(file, mode="w") as fid:
+        with open(filename, mode="w") as fid:
             for line in lines:
                 if RENOVATE_STRING in line:
                     continue
