@@ -6,15 +6,12 @@ chart upgrades. This script accepts a --cluster-path argument which should
 point at a fluxv2 repository that contains Kustomization yaml files, referring
 to HelmReleases.
 
-The script takes two passes:
-  - Pass #1: Run 'kustomize build' on all kustomizations and parse the output
-    HelmRelease and HelmReposistory entries. In particular, this applies any
-    overlays so that for all HelmReleases we have a full picture of the chart
-    spec referencing a HelmRepository.
-  - Pass #2: Read all yaml files and look for a HelmRelease chart and version.
-    When found, update the file with an annotation reference to the helm
-    chart in the HelmRepository. The yaml file may be an overlay with a
-    partially specified chart spec.
+The script takes a few steps:
+  - Find all HelmRepository entries in the cluster, and its associated chart url
+  - Find all HelmReleases that reference a HelmRepository
+  - Update all files that contain HelmReleases, with an annotation to reference
+    the chart url for the repository. This is done as a second pass to handle and
+    kustomize overlays
 """
 
 import logging
