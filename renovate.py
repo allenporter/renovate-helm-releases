@@ -26,9 +26,6 @@ import yaml
 import os
 
 DEFAULT_NAMESPACE = "default"
-INCLUDE_FILES = [".yaml", ".yml"]
-FLUX_KUSTOMIZE_API_VERSIONS = ["kustomize.toolkit.fluxcd.io/v1beta1"]
-KUSTOMIZE_API_VERSION = ["kustomize.config.k8s.io/v1beta1"]
 HELM_REPOSITORY_APIVERSIONS = ["source.toolkit.fluxcd.io/v1beta1"]
 HELM_RELEASE_APIVERSIONS = ["helm.toolkit.fluxcd.io/v2beta1"]
 RENOVATE_STRING = "# renovate: registryUrl="
@@ -42,6 +39,7 @@ class ClusterPath(click.ParamType):
             if not clusterPath.exists:
                 self.fail(f"invalid --cluster-path '{value}'")
         return clusterPath
+
 
 def run_command(command):
     """Runs the specified command arguments and returns the string output."""
@@ -116,13 +114,12 @@ def cli(ctx, cluster_path, debug, dry_run):
             continue
         helm_repo_name = namespaced_name(doc["metadata"])
         helm_repo_url = doc["spec"]["url"]
-        log.info(
-            f"Discovered HelmRepository '{helm_repo_name}' chart url '{helm_repo_url}'"
-        )
+        log.info(f"Found HelmRepository '{helm_repo_name}' url '{helm_repo_url}'")
         helm_repo_charts[helm_repo_name] = helm_repo_url
 
     helm_release_docs = list(kustomize_grep(cluster_path, "HelmRelease"))
     helm_releases = {}
+    # Walk all HelmReleases and create a mapping of release names to repos.
     for doc in helm_release_docs:
         api_version = doc.get("apiVersion")
         if api_version not in HELM_RELEASE_APIVERSIONS:
@@ -134,18 +131,18 @@ def cli(ctx, cluster_path, debug, dry_run):
         source_ref = chart_spec.get("sourceRef")
         if not source_ref:
             # This release may be an overlay, so the repo name could be inferred from the
-            # release name of the base HelmRelease in a second pass.
+            # release name of the base HelmRelease in a second pass below.
             log.debug(f"Skipping '{helm_release_name}': No 'sourceRef' in spec.chart.spec")
             continue
         helm_repo_name = namespaced_name(source_ref)
         if helm_repo_name not in helm_repo_charts:
-            log.debug(f"Skipping '{helm_release_name}': No HelmRepository for '{helm_repo_name}'")
+            log.warning(f"Skipping '{helm_release_name}': No HelmRepository for '{helm_repo_name}'")
             continue
         if helm_release_name in helm_releases:
             if helm_releases[helm_release_name] != helm_repo_name:
-                log.warning(f"Found HelmRelease '{helm_release_name}' with mismatched repo '{helm_repo_name}'")
+                log.warning(f"HelmRelease '{helm_release_name}' mismatched repo '{helm_repo_name}'")
                 continue
-        log.info(f"Discovered HelmRelease '{helm_release_name}' with repo '{helm_repo_name}'")
+        log.info(f"Found HelmRelease '{helm_release_name}' with repo '{helm_repo_name}'")
         helm_releases[helm_release_name] = helm_repo_name
 
     # Walk all HelmReleases and find the referenced HelmRepository by the
@@ -167,7 +164,7 @@ def cli(ctx, cluster_path, debug, dry_run):
             continue
         helm_repo_name = helm_releases[helm_release_name]
         if helm_repo_name not in helm_repo_charts:
-            log.debug(f"Skipping '{file}': HelmRepostory '{helm_repo_name}' not found")
+            log.debug(f"Skipping '{file}': Not HelmRepostory '{helm_repo_name}' found")
             continue
 
         chart_url = helm_repo_charts[helm_repo_name]
