@@ -1,0 +1,16 @@
+---
+apiVersion: helm.toolkit.fluxcd.io/v2beta1
+kind: HelmRelease
+metadata:
+  name: ingress-nginx-3
+  namespace: example
+spec:
+  interval: 5m
+  chart:
+    spec:
+      # renovate: registryUrl=https://kubernetes.github.io/ingress-nginx
+      chart: ingress-nginx
+      version: 3.23.0
+  values:
+    controller:
+      ingressClass: class-1

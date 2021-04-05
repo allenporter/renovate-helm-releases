@@ -1,6 +1,22 @@
 #!/usr/bin/env python3
+"""Updates HelmReleases with an annotation consumeable by rennovate.
+
+This script adds annotations fo HelmRelease files so that rennovate can manage
+chart upgrades. This script accepts a --cluster-path argument which should
+point at a fluxv2 repository that contains Kustomization yaml files, referring
+to HelmReleases.
+
+The script takes a few steps:
+  - Find all HelmRepository entries in the cluster, and its associated chart url
+  - Find all HelmReleases that reference a HelmRepository
+  - Update all files that contain HelmReleases, with an annotation to reference
+    the chart url for the repository. This is done as a second pass to handle
+    and kustomize overlays.
+"""
 
 import logging
+import os
+import subprocess
 from pathlib import Path
 
 import click
@@ -12,6 +28,7 @@ HELM_REPOSITORY_APIVERSIONS = ["source.toolkit.fluxcd.io/v1beta1"]
 HELM_RELEASE_APIVERSIONS = ["helm.toolkit.fluxcd.io/v2beta1"]
 RENOVATE_STRING = "# renovate: registryUrl="
 
+
 class ClusterPath(click.ParamType):
     name = "cluster-path"
     def convert(self, value, param, ctx):
@@ -21,22 +38,47 @@ class ClusterPath(click.ParamType):
                 self.fail(f"invalid --cluster-path '{value}'")
         return clusterPath
 
+
+def yaml_load_files(files):
+    """A generator that loads the contents of all files in yaml."""
+    for file in files:
+        for doc in yaml.safe_load_all(file.read_bytes()):
+            if doc:
+                yield (file, doc)
+
+def kind_filter(kind, api_versions):
+    """Return a yaml doc filter for specified resource type and version."""
+    def func(pair):
+        (file, doc) = pair
+        if doc.get("kind") != kind:
+            return False
+        return doc.get("apiVersion") in api_versions
+    return func
+
+
+def namespaced_name(doc):
+    """Return a named yaml resource, falling back to a default namespace."""
+    name = doc["name"]
+    namespace = doc.get("namespace", DEFAULT_NAMESPACE)
+    return f"{namespace}/{name}"
+
+
 @click.command()
 @click.option(
-    "--cluster-path", envvar="CLUSTER_PATH", 
-    type=ClusterPath(), 
+    "--cluster-path", envvar="CLUSTER_PATH",
+    type=ClusterPath(),
     required=True,
     help="Path to cluster root, e.g. './cluster'"
 )
 @click.option(
-    "--debug", envvar="DEBUG", 
+    "--debug", envvar="DEBUG",
     is_flag=True,
     default=False,
     required=False,
     help="Turn on debug logging"
 )
 @click.option(
-    "--dry-run", envvar="DRY_RUN", 
+    "--dry-run", envvar="DRY_RUN",
     is_flag=True,
     default=False,
     required=False,
@@ -53,79 +95,87 @@ def cli(ctx, cluster_path, debug, dry_run):
     # pylint: disable=no-value-for-parameter
     log = logger()
 
-    annotations = {}
+    files = [p for p in cluster_path.rglob("*") if p.suffix in INCLUDE_FILES]
 
-    files = [p for p in cluster_path.rglob('*') if p.suffix in INCLUDE_FILES]
-    for file in files:
-        for doc in yaml.safe_load_all(file.read_bytes()):
-            if doc:
-                if "apiVersion" in doc and doc["apiVersion"] in HELM_REPOSITORY_APIVERSIONS \
-                        and "kind" in doc and doc["kind"] == "HelmRepository":
-                    helm_repo_name = doc["metadata"]["name"]
-                    helm_repo_url = doc["spec"]["url"]
-                    
-                    log.info(f"Discovered Helm Repository '{helm_repo_name}' with chart url '{helm_repo_url}'")
-                    
-                    if helm_repo_name in annotations:
-                        annotations[helm_repo_name]["chart_url"] = helm_repo_url
-                    else:
-                        annotations[helm_repo_name] = { 
-                            "chart_url": helm_repo_url,
-                            "files": []
-                        }
-                else:
-                    log.debug(f"Skipping '{file}' because this file is not a Helm Repository")
+    yaml_docs = list(yaml_load_files(files))
 
-                if "apiVersion" in doc and doc["apiVersion"] in HELM_RELEASE_APIVERSIONS \
-                        and "kind" in doc and doc["kind"] == "HelmRelease" \
-                        and doc["spec"]["chart"]["spec"]["sourceRef"]["kind"] == "HelmRepository":
-                    helm_release_name = doc["metadata"]["name"]
-                    if "namespace" in doc["metadata"]:
-                        helm_release_namespace = doc["metadata"]["namespace"]
-                    else:
-                        helm_release_namespace = DEFAULT_NAMESPACE
-                    
-                    helm_release_repository = doc["spec"]["chart"]["spec"]["sourceRef"]["name"]
+    # Build a map of HelmRepository name to chart url
+    helm_repo_charts = {}
+    is_helm_repo = kind_filter("HelmRepository", HELM_REPOSITORY_APIVERSIONS)
+    for (file, doc) in filter(is_helm_repo, yaml_docs):
+        helm_repo_name = namespaced_name(doc["metadata"])
+        helm_repo_url = doc["spec"]["url"]
+        log.info(f"Found HelmRepository '{helm_repo_name}' url '{helm_repo_url}'")
+        helm_repo_charts[helm_repo_name] = helm_repo_url
 
-                    log.info(f"Discovered Helm Release '{helm_release_name}'' in the namespace '{helm_release_namespace}'")
-                    
-                    if not helm_release_repository in annotations:
-                        annotations[helm_release_repository] = { 
-                            "chart_url": None,
-                            "files": []
-                        }                   
-                    annotations[helm_release_repository]["files"].append(file)
-                else:
-                    log.debug(f"Skipping '{file}' because this file is not a Helm Release")
-
-    for chart_name, value in annotations.items():
-        if "files" in value and "chart_url" in value:
-            if value["chart_url"]:
-                for file in value["files"]:
-                    if dry_run:
-                        log.warning(f"Skipping '{chart_name}' annotations in '{file}' with '{value['chart_url']}' because this is a dry run")
-                        continue
-
-                    log.info(f"Updating '{chart_name}' renovate annotations in '{file}' with '{value['chart_url']}'")
-                    with open(file, mode='r') as fid:
-                        lines = fid.read().splitlines()
-
-                    with open(file, mode='w') as fid:
-                        for line in lines:
-                            if RENOVATE_STRING in line:
-                                continue
-
-                            if " chart: " in line:
-                                indent_spaces = len(line) - len(line.lstrip())
-                                fid.write(f"{' ' * indent_spaces}{RENOVATE_STRING}{value['chart_url']}\n")
-                                pass
-
-                            fid.write(f"{line}\n")
-            else:
-                log.warning(f"Skipping '{chart_name}' because no matching Helm Repository was found")
-        else:
-            log.warning(f"Skipping '{chart_name}' no Helm Release found using '{value['chart_url']}'")
+    # Walk all HelmReleases and create a map of release names to repos.
+    is_helm_release = kind_filter("HelmRelease", HELM_RELEASE_APIVERSIONS)
+    helm_release_docs = list(filter(is_helm_release, yaml_docs))
+    helm_releases = {}
+    for (file, doc) in helm_release_docs:
+        helm_release_name = namespaced_name(doc["metadata"])
+        chart_spec = doc["spec"]["chart"]["spec"]
+        source_ref = chart_spec.get("sourceRef")
+        if not source_ref:
+            # This release may be an overlay, so the repo name could be inferred from the
+            # release name of the base HelmRelease in a second pass below.
+            log.debug(f"Skipping '{helm_release_name}': No 'sourceRef' in spec.chart.spec")
             continue
+        helm_repo_name = namespaced_name(source_ref)
+        if helm_repo_name not in helm_repo_charts:
+            log.warning(f"Skipping '{helm_release_name}': No HelmRepository for '{helm_repo_name}'")
+            continue
+        if helm_release_name in helm_releases:
+            if helm_releases[helm_release_name] != helm_repo_name:
+                log.warning(f"HelmRelease '{helm_release_name}' mismatched repo '{helm_repo_name}'")
+                continue
+        log.info(f"Found HelmRelease '{helm_release_name}' with repo '{helm_repo_name}'")
+        helm_releases[helm_release_name] = helm_repo_name
+
+    # Walk all HelmReleases and find the referenced HelmRepository by the
+    # chart sourceRef and update the renovate annotation.
+    for (file, doc) in helm_release_docs:
+        helm_release_name = namespaced_name(doc["metadata"])
+        if helm_release_name not in helm_releases:
+            log.debug(f"Skipping '{helm_release_name}': Could not determine repo")
+            continue
+        # Renovate can only update chart specs that contain a name and version,
+        # so don't bother annotating if its not present.
+        chart_spec = doc["spec"]["chart"]["spec"]
+        if "chart" not in chart_spec or "version" not in chart_spec:
+            log.debug(f"Skipping '{helm_release_name}': No 'chart' or 'version' in spec.chart.spec")
+            continue
+        helm_repo_name = helm_releases[helm_release_name]
+        if helm_repo_name not in helm_repo_charts:
+            log.debug(f"Skipping '{file}': Not HelmRepostory '{helm_repo_name}' found")
+            continue
+
+        chart_url = helm_repo_charts[helm_repo_name]
+
+        if dry_run:
+            log.warning(
+                f"Skipping '{helm_repo_name}' annotations in '{file}' with '{chart_url}' as this is a dry run"
+            )
+            continue
+
+        log.info(
+            f"Updating '{helm_repo_name}' renovate annotations in '{file}' with '{chart_url}'"
+        )
+        with open(file, mode="r") as fid:
+            lines = fid.read().splitlines()
+
+        with open(file, mode="w") as fid:
+            for line in lines:
+                if RENOVATE_STRING in line:
+                    continue
+
+                if " chart: " in line:
+                    indent_spaces = len(line) - len(line.lstrip())
+                    fid.write(f"{' ' * indent_spaces}{RENOVATE_STRING}{chart_url}\n")
+                    pass
+
+                fid.write(f"{line}\n")
+
 
 @click.pass_context
 def logger(ctx):
@@ -137,6 +187,7 @@ def logger(ctx):
         datefmt="%Y-%m-%d %H:%M:%S"
     )
     return logging.getLogger("Renovate Helm Releases")
+
 
 if __name__ == "__main__":
     # pylint: disable=no-value-for-parameter
