@@ -50,6 +50,8 @@ def kind_filter(kind, api_versions):
     """Return a yaml doc filter for specified resource type and version."""
     def func(pair):
         (file, doc) = pair
+        if isinstance(doc, list):
+            return False
         if doc.get("kind") != kind:
             return False
         return doc.get("apiVersion") in api_versions
