@@ -5,12 +5,20 @@ inputs:
   cluster-path:
     description: "Path to the folder containing your Flux2 Helm Repositories and Helm Releases"
     required: true
+  exclude-folders:
+    description: "Folders to exclude such as those use includes (Example: Ansible Vault)"
+    required: false
+    default: ""
   debug:
     description: "Turn on debug logging"
     required: false
     default: "no"
   dry-run:
     description: "Do not alter Helm Release files"
+    required: false
+    default: "no"
+  tolerate-yaml-errors:
+    description: "Tolerate yaml files with errors instead of aborting on errors"
     required: false
     default: "no"
 runs:

@@ -46,6 +46,8 @@ uses: k8s-at-home/renovate-helm-releases@v1
 with:
   # Path to the folder containing your Flux2 Helm Repositories and Helm Releases
   cluster-path: './cluster'
+  # Folders to exclude such as those use includes (Example: Ansible Vault)
+  exclude-folders: './cluster/ansible,'../cluster/docs'
   # Turn on debug logging
   debug: 'no'
   # Do not alter Helm Release files
