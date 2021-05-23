@@ -50,6 +50,8 @@ with:
   debug: 'no'
   # Do not alter Helm Release files
   dry-run: 'no'
+  # Tolerate yaml files with errors instead of aborting on errors
+  tolerate-yaml-errors: 'no'
 ```
 
 ## Script usage example

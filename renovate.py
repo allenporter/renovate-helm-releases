@@ -39,12 +39,19 @@ class ClusterPath(click.ParamType):
         return clusterPath
 
 
-def yaml_load_files(files):
+def yaml_load_files(files, tolerate_yaml_errors):
     """A generator that loads the contents of all files in yaml."""
     for file in files:
-        for doc in yaml.safe_load_all(file.read_bytes()):
-            if doc:
-                yield (file, doc)
+        try:
+            for doc in yaml.safe_load_all(file.read_bytes()):
+                if doc:
+                    yield (file, doc)
+        except yaml.YAMLError as e:
+            if tolerate_yaml_errors:
+                logger().warning(f"Skipping '{file}': {e}")
+                pass
+            else:
+                raise e
 
 def kind_filter(kind, api_versions):
     """Return a yaml doc filter for specified resource type and version."""
@@ -86,12 +93,20 @@ def namespaced_name(doc):
     required=False,
     help="Do not alter Helm Release files"
 )
+@click.option(
+    "--tolerate-yaml-errors", envvar="TOLERATE_YAML_ERRORS",
+    is_flag=True,
+    default=False,
+    required=False,
+    help="Warn on yaml errors"
+)
 @click.pass_context
-def cli(ctx, cluster_path, debug, dry_run):
+def cli(ctx, cluster_path, debug, dry_run, tolerate_yaml_errors):
     ctx.obj = {
         "cluster_path": cluster_path,
         "debug": debug,
-        "dry_run": dry_run
+        "dry_run": dry_run,
+        "tolerate_yaml_errors": tolerate_yaml_errors
     }
 
     # pylint: disable=no-value-for-parameter
@@ -99,7 +114,7 @@ def cli(ctx, cluster_path, debug, dry_run):
 
     files = [p for p in cluster_path.rglob("*") if p.suffix in INCLUDE_FILES]
 
-    yaml_docs = list(yaml_load_files(files))
+    yaml_docs = list(yaml_load_files(files, tolerate_yaml_errors))
 
     # Build a map of HelmRepository name to chart url
     helm_repo_charts = {}
