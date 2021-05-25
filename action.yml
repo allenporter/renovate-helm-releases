@@ -1,7 +1,9 @@
 ---
 name: "Renovate Helm Releases"
 description: "Creates Renovate annotations in Flux2 Helm Releases"
-color: green
+branding:
+  color: green
+  icon: search
 inputs:
   cluster-path:
     description: "Path to the folder containing your Flux2 Helm Repositories and Helm Releases"
