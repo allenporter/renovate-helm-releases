@@ -80,6 +80,13 @@ def namespaced_name(doc):
     help="Path to cluster root, e.g. './cluster'"
 )
 @click.option(
+    "--excluded-folders", envvar="EXCLUDED_FOLDERS",
+    type=click.Path(),
+    multiple=True,
+    required=False,
+    help="Path to excluded folders, e.g. './cluster/ansible'"
+)
+@click.option(
     "--debug", envvar="DEBUG",
     is_flag=True,
     default=False,
@@ -101,9 +108,10 @@ def namespaced_name(doc):
     help="Warn on yaml errors"
 )
 @click.pass_context
-def cli(ctx, cluster_path, debug, dry_run, tolerate_yaml_errors):
+def cli(ctx, cluster_path, excluded_folders, debug, dry_run, tolerate_yaml_errors):
     ctx.obj = {
         "cluster_path": cluster_path,
+        "excluded_folders": excluded_folders,
         "debug": debug,
         "dry_run": dry_run,
         "tolerate_yaml_errors": tolerate_yaml_errors
@@ -112,7 +120,9 @@ def cli(ctx, cluster_path, debug, dry_run, tolerate_yaml_errors):
     # pylint: disable=no-value-for-parameter
     log = logger()
 
-    files = [p for p in cluster_path.rglob("*") if p.suffix in INCLUDE_FILES]
+    excluded_files = [p for folder in excluded_folders for p in Path(folder).rglob("*")]
+
+    files = [p for p in cluster_path.rglob("*") if p.suffix in INCLUDE_FILES and p not in excluded_files]
 
     yaml_docs = list(yaml_load_files(files, tolerate_yaml_errors))
 
