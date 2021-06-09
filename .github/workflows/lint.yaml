@@ -1,0 +1,21 @@
+---
+name: Lint
+
+on:
+  workflow_dispatch:
+  pull_request:
+  push:
+    branches:
+    - main
+
+jobs:
+  shellcheck:
+    name: Shellcheck
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v2
+
+    - name: Run ShellCheck
+      uses: ludeeus/action-shellcheck@master
+      with:
+        ignore: tests
