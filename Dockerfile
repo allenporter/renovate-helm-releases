@@ -10,7 +10,9 @@ LABEL "com.github.actions.color"="blue"
 
 COPY requirements.txt /app/requirements.txt
 
-RUN pip install --no-cache-dir -r /app/requirements.txt
+RUN \
+  apk add --no-cache bash \
+  && pip install --no-cache-dir -r /app/requirements.txt
 
 COPY renovate.py /app/renovate.py
 
