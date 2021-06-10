@@ -24,4 +24,4 @@ if [ "${TOLERATE_YAML_ERRORS}" = "yes" ]; then
     FLAGS+=("--tolerate-yaml-errors")
 fi
 
-/usr/local/bin/python /app/renovate.py ${FLAGS[@]}
+/usr/local/bin/python /app/renovate.py "${FLAGS[@]}"
