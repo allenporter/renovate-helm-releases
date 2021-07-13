@@ -7,7 +7,6 @@ def test_renovate():
   runner = CliRunner()
   result = runner.invoke(cli, ['--cluster-path', './tests/'])
   assert result.exit_code == 0
-  assert result.output == 'Hello Peter!\n'
 
 if __name__ == '__main__':
     test_renovate()
