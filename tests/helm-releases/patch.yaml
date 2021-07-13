@@ -1,0 +1,12 @@
+# An example kustomize 'patchesStrategicMerge' file:
+apiVersion: helm.toolkit.fluxcd.io/v2beta1
+kind: HelmRelease
+metadata:
+  name: transmission
+spec:
+  values:
+    env:
+      TRANSMISSION_PEER_PORT: 55555
+    persistence:
+      downloads:
+        existingClaim: downloads-pvc-test
