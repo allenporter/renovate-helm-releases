@@ -141,7 +141,18 @@ def cli(ctx, cluster_path, excluded_folders, debug, dry_run, tolerate_yaml_error
     helm_releases = {}
     for (file, doc) in helm_release_docs:
         helm_release_name = namespaced_name(doc["metadata"])
-        chart_spec = doc["spec"]["chart"]["spec"]
+        release_spec = doc.get("spec")
+        if not release_spec:
+            log.debug(f"Skipping '{helm_release_name}': No 'spec' in HelmRelease")
+            continue
+        chart_yaml = release_spec.get("chart")
+        if not chart_yaml:
+            log.debug(f"Skipping '{helm_release_name}': No 'spec.chart'")
+            continue
+        chart_spec = chart_yaml.get("spec")
+        if not chart_spec:
+            log.debug(f"Skipping '{helm_release_name}': No 'spec.chart.spec'")
+            continue
         source_ref = chart_spec.get("sourceRef")
         if not source_ref:
             # This release may be an overlay, so the repo name could be inferred from the
