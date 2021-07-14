@@ -2,9 +2,12 @@ name: publish_action
 
 on:
   workflow_dispatch:
-  release:
-    types: 
-    - released
+  push:
+    branches:
+      - "!*"
+    tags:
+      - 'v*'
+      - latest
 
 env:
   REGISTRY_IMAGE: ghcr.io/k8s-at-home/renovate-helm-releases
