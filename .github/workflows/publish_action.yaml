@@ -80,3 +80,9 @@ jobs:
 
     - name: Image digest
       run: echo ${{ steps.docker_build.outputs.digest }}
+
+    - name: Create additional version tags
+      uses: vweevers/additional-tags-action@v1.0.0
+
+    - name: Create latest tag
+      uses: EndBug/latest-tag@v1.4.0
