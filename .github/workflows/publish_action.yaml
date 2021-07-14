@@ -2,19 +2,33 @@ name: publish_action
 
 on:
   workflow_dispatch:
-  push:
-    branches:
-      - "!*"
-    tags:
-      - 'v[0-9]+.[0-9]+.[0-9]+'
+  release:
+    types: [published]
 
 env:
   REGISTRY_IMAGE: ghcr.io/k8s-at-home/renovate-helm-releases
 
 jobs:
+  check_tag:
+    runs-on: ubuntu-20.04
+    outputs:
+      run_other_jobs: ${{ steps.check-tag.outputs.run_jobs }}
+    steps:
+      - name: check tag ${{ github.ref }}
+        id: check-tag
+        run: |
+          if [[ "${{ github.ref }}" =~ refs\/tags\/v[0-9]+\.[0-9]+\.[0-9]+ ]]; then
+            echo "::set-output name=run_jobs::true"
+          elif [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+            echo "::set-output name=run_jobs::true"
+          else
+            echo "::set-output name=run_jobs::false"
+          fi
+
   docker:
-    runs-on: ubuntu-latest
-    if: "!contains(github.event.head_commit.message, '[ci-skip]')"
+    runs-on: ubuntu-20.04
+    needs: [check_tag]
+    if: needs.check_tag.outputs.run_other_jobs == 'true'
     steps:
     - name: Get k8s-at-home token
       id: get-app-token
