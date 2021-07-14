@@ -18,7 +18,8 @@ jobs:
         app_id: ${{ secrets.K8S_AT_HOME_APP_ID }}
         private_key: ${{ secrets.K8S_AT_HOME_APP_PRIVATE_KEY }}
 
-    - uses: Actions-R-Us/actions-tagger@v2.0.2
+    - name: Publish tags
+      uses: Actions-R-Us/actions-tagger@v2.0.2
       with:
         token: ${{ steps.get-app-token.outputs.token }}
         publish_latest_tag: true

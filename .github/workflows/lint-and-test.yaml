@@ -13,7 +13,17 @@ jobs:
     name: Shellcheck
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v2
+    - name: Get k8s-at-home token
+      id: get-app-token
+      uses: getsentry/action-github-app-token@v1
+      with:
+        app_id: ${{ secrets.K8S_AT_HOME_APP_ID }}
+        private_key: ${{ secrets.K8S_AT_HOME_APP_PRIVATE_KEY }}
+    
+    - name: Checkout
+      uses: actions/checkout@v2
+      with:
+        token: ${{ steps.get-app-token.outputs.token }}
 
     - name: Run ShellCheck
       uses: ludeeus/action-shellcheck@master
@@ -23,9 +33,25 @@ jobs:
   test:
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v2
-    - uses: actions/setup-python@v2
+    - name: Get k8s-at-home token
+      id: get-app-token
+      uses: getsentry/action-github-app-token@v1
+      with:
+        app_id: ${{ secrets.K8S_AT_HOME_APP_ID }}
+        private_key: ${{ secrets.K8S_AT_HOME_APP_PRIVATE_KEY }}
+    
+    - name: Checkout
+      uses: actions/checkout@v2
+      with:
+        token: ${{ steps.get-app-token.outputs.token }}
+
+    - name: Setup Python
+      uses: actions/setup-python@v2
       with:
         python-version: '3.x'
-    - run: "pip install -r requirements.txt"
-    - run: "python3 ./test_renovate.py"
+
+    - name: Install requirements
+      run: "pip install -r requirements.txt"
+
+    - name: Run tests
+      run: "python3 ./test_renovate.py"
