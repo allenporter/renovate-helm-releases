@@ -6,8 +6,7 @@ on:
     branches:
       - "!*"
     tags:
-      - 'v*'
-      - latest
+      - 'v[0-9]+.[0-9]+.[0-9]+'
 
 env:
   REGISTRY_IMAGE: ghcr.io/k8s-at-home/renovate-helm-releases
@@ -54,9 +53,9 @@ jobs:
       uses: actions/cache@v2
       with:
         path: /tmp/.buildx-cache
-        key: ${{ runner.os }}-buildx-${{ github.sha }}
+        key: ${{ runner.os }}-buildx-${{ github.event.repository.name }}
         restore-keys: |
-          ${{ runner.os }}-buildx-
+          ${{ runner.os }}-buildx-${{ github.event.repository.name }}
 
     - name: Login to GitHub Container Registry
       uses: docker/login-action@v1
