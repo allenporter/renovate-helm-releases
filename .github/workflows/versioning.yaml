@@ -1,5 +1,4 @@
 ---
-
 name: Tag major only version
 
 on:
@@ -12,8 +11,14 @@ jobs:
   actions-tagger:
     runs-on: ubuntu-20.04
     steps:
-    - uses: Actions-R-Us/actions-tagger@latest
-      env:
-        GITHUB_TOKEN: "${{ secrets.GITHUB_TOKEN }}"
+    - name: Get k8s-at-home token
+      id: get-app-token
+      uses: getsentry/action-github-app-token@v1
       with:
+        app_id: ${{ secrets.K8S_AT_HOME_APP_ID }}
+        private_key: ${{ secrets.K8S_AT_HOME_APP_PRIVATE_KEY }}
+
+    - uses: Actions-R-Us/actions-tagger@v2.0.2
+      with:
+        token: ${{ steps.get-app-token.outputs.token }}
         publish_latest_tag: true
