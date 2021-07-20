@@ -1,4 +1,25 @@
-# An example kustomize 'patchesStrategicMerge' file:
+# An example of a HelmRelease, the base for the overlay below
+
+apiVersion: helm.toolkit.fluxcd.io/v2beta1
+kind: HelmRelease
+metadata:
+  name: transmission
+spec:
+  interval: 5m
+  chart:
+    spec:
+      chart: transmission
+      sourceRef:
+        kind: HelmRepository
+        name: k8s-at-home
+        namespace: flux-system
+      interval: 5m
+  values:
+
+---
+
+  # An example of an overlay that does not have a 'chart' section
+
 apiVersion: helm.toolkit.fluxcd.io/v2beta1
 kind: HelmRelease
 metadata:

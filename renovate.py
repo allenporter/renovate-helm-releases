@@ -141,15 +141,7 @@ def cli(ctx, cluster_path, excluded_folders, debug, dry_run, tolerate_yaml_error
     helm_releases = {}
     for (file, doc) in helm_release_docs:
         helm_release_name = namespaced_name(doc["metadata"])
-        release_spec = doc.get("spec")
-        if not release_spec:
-            log.debug(f"Skipping '{helm_release_name}': No 'spec' in HelmRelease")
-            continue
-        chart_yaml = release_spec.get("chart")
-        if not chart_yaml:
-            log.debug(f"Skipping '{helm_release_name}': No 'spec.chart'")
-            continue
-        chart_spec = chart_yaml.get("spec")
+        chart_spec = doc.get("spec",{}).get("chart",{}).get("spec", {})
         if not chart_spec:
             log.debug(f"Skipping '{helm_release_name}': No 'spec.chart.spec'")
             continue
@@ -178,8 +170,10 @@ def cli(ctx, cluster_path, excluded_folders, debug, dry_run, tolerate_yaml_error
             log.debug(f"Skipping '{helm_release_name}': Could not determine repo")
             continue
         # Renovate can only update chart specs that contain a name and version,
-        # so don't bother annotating if its not present.
-        chart_spec = doc["spec"]["chart"]["spec"]
+        chart_spec = doc.get("spec",{}).get("chart",{}).get("spec", {})
+        if not chart_spec:
+            log.debug(f"Skipping '{helm_release_name}': No 'spec.chart.spec'")
+            continue
         if "chart" not in chart_spec or "version" not in chart_spec:
             log.debug(f"Skipping '{helm_release_name}': No 'chart' or 'version' in spec.chart.spec")
             continue
