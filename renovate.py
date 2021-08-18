@@ -51,6 +51,7 @@ def yaml_load_files(files, tolerate_yaml_errors):
                 logger().warning(f"Skipping '{file}': {e}")
                 pass
             else:
+                logger().error(f"File '{file}' has syntax errors.")
                 raise e
 
 def kind_filter(kind, api_versions):
