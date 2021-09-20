@@ -15,8 +15,6 @@ The script takes a few steps:
 """
 
 import logging
-import os
-import subprocess
 from pathlib import Path
 
 import click
@@ -38,7 +36,6 @@ class ClusterPath(click.ParamType):
                 self.fail(f"invalid --cluster-path '{value}'")
         return clusterPath
 
-
 def yaml_load_files(files, tolerate_yaml_errors):
     """A generator that loads the contents of all files in yaml."""
     for file in files:
@@ -57,14 +54,13 @@ def yaml_load_files(files, tolerate_yaml_errors):
 def kind_filter(kind, api_versions):
     """Return a yaml doc filter for specified resource type and version."""
     def func(pair):
-        (file, doc) = pair
+        (_, doc) = pair
         if isinstance(doc, list):
             return False
         if doc.get("kind") != kind:
             return False
         return doc.get("apiVersion") in api_versions
     return func
-
 
 def namespaced_name(doc):
     """Return a named yaml resource, falling back to a default namespace."""
@@ -118,9 +114,6 @@ def cli(ctx, cluster_path, excluded_folders, debug, dry_run, tolerate_yaml_error
         "tolerate_yaml_errors": tolerate_yaml_errors
     }
 
-    # pylint: disable=no-value-for-parameter
-    log = logger()
-
     excluded_files = [p for folder in excluded_folders for p in Path(folder).rglob("*")]
 
     files = [p for p in cluster_path.rglob("*") if p.suffix in INCLUDE_FILES and p not in excluded_files]
@@ -133,7 +126,7 @@ def cli(ctx, cluster_path, excluded_folders, debug, dry_run, tolerate_yaml_error
     for (file, doc) in filter(is_helm_repo, yaml_docs):
         helm_repo_name = namespaced_name(doc["metadata"])
         helm_repo_url = doc["spec"]["url"]
-        log.info(f"Found HelmRepository '{helm_repo_name}' url '{helm_repo_url}'")
+        logger().info(f"Found HelmRepository '{helm_repo_name}' url '{helm_repo_url}'")
         helm_repo_charts[helm_repo_name] = helm_repo_url
 
     # Walk all HelmReleases and create a map of release names to repos.
@@ -144,23 +137,23 @@ def cli(ctx, cluster_path, excluded_folders, debug, dry_run, tolerate_yaml_error
         helm_release_name = namespaced_name(doc["metadata"])
         chart_spec = doc.get("spec",{}).get("chart",{}).get("spec", {})
         if not chart_spec:
-            log.debug(f"Skipping '{helm_release_name}': No 'spec.chart.spec'")
+            logger().debug(f"Skipping '{helm_release_name}': No 'spec.chart.spec'")
             continue
         source_ref = chart_spec.get("sourceRef")
         if not source_ref:
             # This release may be an overlay, so the repo name could be inferred from the
             # release name of the base HelmRelease in a second pass below.
-            log.debug(f"Skipping '{helm_release_name}': No 'sourceRef' in spec.chart.spec")
+            logger().debug(f"Skipping '{helm_release_name}': No 'sourceRef' in spec.chart.spec")
             continue
         helm_repo_name = namespaced_name(source_ref)
         if helm_repo_name not in helm_repo_charts:
-            log.warning(f"Skipping '{helm_release_name}': No HelmRepository for '{helm_repo_name}'")
+            logger().warning(f"Skipping '{helm_release_name}': No HelmRepository for '{helm_repo_name}'")
             continue
         if helm_release_name in helm_releases:
             if helm_releases[helm_release_name] != helm_repo_name:
-                log.warning(f"HelmRelease '{helm_release_name}' mismatched repo '{helm_repo_name}'")
+                logger().warning(f"HelmRelease '{helm_release_name}' mismatched repo '{helm_repo_name}'")
                 continue
-        log.info(f"Found HelmRelease '{helm_release_name}' with repo '{helm_repo_name}'")
+        logger().info(f"Found HelmRelease '{helm_release_name}' with repo '{helm_repo_name}'")
         helm_releases[helm_release_name] = helm_repo_name
 
     # Walk all HelmReleases and find the referenced HelmRepository by the
@@ -168,30 +161,30 @@ def cli(ctx, cluster_path, excluded_folders, debug, dry_run, tolerate_yaml_error
     for (file, doc) in helm_release_docs:
         helm_release_name = namespaced_name(doc["metadata"])
         if helm_release_name not in helm_releases:
-            log.debug(f"Skipping '{helm_release_name}': Could not determine repo")
+            logger().debug(f"Skipping '{helm_release_name}': Could not determine repo")
             continue
         # Renovate can only update chart specs that contain a name and version,
         chart_spec = doc.get("spec",{}).get("chart",{}).get("spec", {})
         if not chart_spec:
-            log.debug(f"Skipping '{helm_release_name}': No 'spec.chart.spec'")
+            logger().debug(f"Skipping '{helm_release_name}': No 'spec.chart.spec'")
             continue
         if "chart" not in chart_spec or "version" not in chart_spec:
-            log.debug(f"Skipping '{helm_release_name}': No 'chart' or 'version' in spec.chart.spec")
+            logger().debug(f"Skipping '{helm_release_name}': No 'chart' or 'version' in spec.chart.spec")
             continue
         helm_repo_name = helm_releases[helm_release_name]
         if helm_repo_name not in helm_repo_charts:
-            log.debug(f"Skipping '{file}': Not HelmRepostory '{helm_repo_name}' found")
+            logger().debug(f"Skipping '{file}': Not HelmRepostory '{helm_repo_name}' found")
             continue
 
         chart_url = helm_repo_charts[helm_repo_name]
 
         if dry_run:
-            log.warning(
+            logger().warning(
                 f"Skipping '{helm_repo_name}' annotations in '{file}' with '{chart_url}' as this is a dry run"
             )
             continue
 
-        log.info(
+        logger().info(
             f"Updating '{helm_repo_name}' renovate annotations in '{file}' with '{chart_url}'"
         )
         with open(file, mode="r") as fid:
