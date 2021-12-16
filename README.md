@@ -67,6 +67,18 @@ pip install -U -r requirements.txt
 ./renovate.py --cluster-path="./cluster"
 ```
 
+## pre-commit usage example
+
+You can use [pre-commit](https://pre-commit.com) for updating the files before checkin.
+
+```yaml
+- repo: https://github.com/k8s-at-home/renovate-helm-releases
+  rev: RELEASE_TAG
+  hooks:
+  - id: renovate-helm-releases
+    args: ['./cluster', '--excluded-folders', './cluster/charts']
+```
+
 ## Renovate configuration example
 
 Something like the following is needed in order for `Renovate` to pick up `HelmReposistory`'s and `HelmRelease`'s

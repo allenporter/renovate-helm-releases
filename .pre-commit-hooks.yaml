@@ -1,0 +1,7 @@
+- id: renovate-helm-releases 
+  name: Renovate Helm Releases
+  description: "Update comments for running Renovate for Helm Releases."
+  entry: renovate-helm-releases --cluster-path
+  pass_filenames: false
+  language: python
+  files: ^[^.].*\.yaml$
