@@ -1,4 +1,11 @@
 # Renovate Helm Releases
+
+---
+
+**IMPORTANT NOTE:** As of Renovate [31.35.0](https://github.com/renovatebot/renovate/releases/tag/31.35.0), this script and `regexManager` should not be needed in order for Renovate to update Flux `HelmRelease`s. As such this repo will be going into maintainence mode and eventually archived.
+
+---
+
 <!-- ALL-CONTRIBUTORS-BADGE:START - Do not remove or modify this section -->
 [![All Contributors](https://img.shields.io/badge/all_contributors-6-orange.svg?style=flat-square)](#contributors-)
 <!-- ALL-CONTRIBUTORS-BADGE:END -->
