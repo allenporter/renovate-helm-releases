@@ -2,7 +2,7 @@
 
 ---
 
-**IMPORTANT NOTE:** As of Renovate [31.35.0](https://github.com/renovatebot/renovate/releases/tag/31.35.0), this script and `regexManager` should not be needed in order for Renovate to update Flux `HelmRelease`s. As such this repo will be going into maintainence mode and eventually archived.
+**IMPORTANT NOTE:** The original repo https://github.com/k8s-at-home/renovate-helm-releases has been archived given as of Renovate [31.35.0](https://github.com/renovatebot/renovate/releases/tag/31.35.0), this script and `regexManager` should not be needed in order for Renovate to update Flux `HelmRelease`s. However, Renovate flux support does not appear to work yet with overlays.
 
 ---
 
