@@ -22,8 +22,11 @@ import yaml
 
 DEFAULT_NAMESPACE = "default"
 INCLUDE_FILES = [".yaml", ".yml"]
-HELM_REPOSITORY_APIVERSIONS = ["source.toolkit.fluxcd.io/v1beta1"]
-HELM_RELEASE_APIVERSIONS = ["helm.toolkit.fluxcd.io/v2beta1"]
+HELM_REPOSITORY_APIVERSIONS = [
+    "source.toolkit.fluxcd.io/v1beta1",
+    "source.toolkit.fluxcd.io/v1beta2",
+]
+HELM_RELEASE_APIVERSIONS = [ "helm.toolkit.fluxcd.io/v2beta1" ]
 RENOVATE_STRING = "# renovate: registryUrl="
 
 
@@ -129,6 +132,9 @@ def cli(ctx, cluster_path, excluded_folders, debug, dry_run, tolerate_yaml_error
         logger().info(f"Found HelmRepository '{helm_repo_name}' url '{helm_repo_url}'")
         helm_repo_charts[helm_repo_name] = helm_repo_url
 
+    if not helm_repo_charts:
+        raise ValueError("No HelmRepositories found")
+
     # Walk all HelmReleases and create a map of release names to repos.
     is_helm_release = kind_filter("HelmRelease", HELM_RELEASE_APIVERSIONS)
     helm_release_docs = list(filter(is_helm_release, yaml_docs))
@@ -155,6 +161,9 @@ def cli(ctx, cluster_path, excluded_folders, debug, dry_run, tolerate_yaml_error
                 continue
         logger().info(f"Found HelmRelease '{helm_release_name}' with repo '{helm_repo_name}'")
         helm_releases[helm_release_name] = helm_repo_name
+
+    if not helm_releases:
+        raise ValueError("No HelmReleases found")
 
     # Walk all HelmReleases and find the referenced HelmRepository by the
     # chart sourceRef and update the renovate annotation.
