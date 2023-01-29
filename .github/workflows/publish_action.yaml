@@ -65,11 +65,11 @@ jobs:
           ${{ runner.os }}-buildx-${{ github.event.repository.name }}
 
     - name: Login to GitHub Container Registry
-      uses: docker/login-action@v1
+      uses: docker/login-action@v2.1.0
       with:
         registry: ghcr.io
-        username: ${{ secrets.GHCR_USERNAME }}
-        password: ${{ secrets.GHCR_TOKEN }}
+        username: ${{ github.repository_owner }}
+        password: ${{ secrets.GITHUB_TOKEN }}
 
     - name: Build and Push
       id: docker_build
