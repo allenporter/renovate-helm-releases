@@ -6,7 +6,7 @@ on:
     types: [published]
 
 env:
-  REGISTRY_IMAGE: ghcr.io/k8s-at-home/renovate-helm-releases
+  REGISTRY_IMAGE: ghcr.io/allenporter/renovate-helm-releases
 
 jobs:
   check_tag:
@@ -30,13 +30,6 @@ jobs:
     needs: [check_tag]
     if: needs.check_tag.outputs.run_other_jobs == 'true'
     steps:
-    - name: Get k8s-at-home token
-      id: get-app-token
-      uses: getsentry/action-github-app-token@v1
-      with:
-        app_id: ${{ secrets.K8S_AT_HOME_APP_ID }}
-        private_key: ${{ secrets.K8S_AT_HOME_APP_PRIVATE_KEY }}
-    
     - name: Checkout
       uses: actions/checkout@v3
       with:
